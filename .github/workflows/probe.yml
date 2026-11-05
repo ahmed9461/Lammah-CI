@@ -1,0 +1,27 @@
+name: Runner availability probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: runner-availability-probe
+  cancel-in-progress: false
+jobs:
+  probe:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Confirm a hosted runner started without private inputs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          print(json.dumps({
+              "probe": "runner-started",
+              "applicationSourceRead": False,
+              "privateInputs": False,
+              "whatsAppConnections": 0,
+              "paidAiRequests": 0,
+          }))
+          PY
