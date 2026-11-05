@@ -27,17 +27,6 @@ jobs:
     if: github.actor == github.repository_owner
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    services:
-      postgres:
-        image: ${{ inputs.suite == 'core' && 'postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5' || '' }}
-        env:
-          POSTGRES_USER: lammah_test
-          POSTGRES_PASSWORD: lammah-test-only
-          POSTGRES_DB: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U lammah_test -d postgres"
-          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -54,7 +43,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           CI_SUITE: ${{ inputs.suite }}
-          SOURCE_SSH_KEY: ${{ secrets.LAMMAH_READONLY_SOURCE }}
+          SOURCE_SSH_KEY: ${{ secrets.LAMMAH_READONLY_SOURCE_V2 }}
         run: node checkout.mjs
       - name: Run private checks without source credentials
         if: always()
@@ -62,7 +51,6 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           CI_SUITE: ${{ inputs.suite }}
-          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: node controller.mjs
       - name: Upload encrypted report only
         if: always() && steps.controller.outputs.sealed == 'true'

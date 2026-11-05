@@ -38,6 +38,8 @@ cleanEnv.GITHUB_WORKSPACE = source;
 const commands = [];
 let sealed = false;
 let ownedRoot = false;
+const databaseName = `lammah-ci-pg-${context.runId}-${context.attempt}`;
+let databaseStarted = false;
 async function command(label, exe, args, cwd = source, extra = {}) {
   const start = Date.now(),
     file = join(
@@ -102,12 +104,47 @@ async function run() {
     throw Error("source_commit_mismatch");
   const install = ["ci", "--ignore-scripts", "--no-fund", "--no-audit"];
   if (context.suite === "core") {
+    await command("database-start", "docker", [
+      "run",
+      "--detach",
+      "--rm",
+      "--name",
+      databaseName,
+      "--log-driver=none",
+      "--publish",
+      "127.0.0.1:5432:5432",
+      "--env",
+      "POSTGRES_USER=lammah_test",
+      "--env",
+      "POSTGRES_PASSWORD=lammah-test-only",
+      "--env",
+      "POSTGRES_DB=postgres",
+      "postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5",
+    ]);
+    databaseStarted = true;
+    await command("database-log-driver", "docker", [
+      "inspect",
+      "--format={{.HostConfig.LogConfig.Type}}",
+      databaseName,
+    ]);
+    if (
+      (await readFile(join(reports, commands.at(-1).log), "utf8")).trim() !==
+      "none"
+    )
+      throw Error("database_public_logging_forbidden");
+    await command("database-ready", "docker", [
+      "exec",
+      databaseName,
+      "sh",
+      "-c",
+      "i=0; until pg_isready -h 127.0.0.1 -U lammah_test -d postgres; do i=$((i+1)); test $i -lt 60 || exit 1; sleep 1; done",
+    ]);
     await command("root-install", "npm", [...install, "--omit=peer"]);
     await command("core-check", "npm", ["run", "check"], source, {
       LAMMAH_STORAGE_TESTS: "1",
       LAMMAH_TEST_DATABASE_URL:
         "postgresql://lammah_test:lammah-test-only@127.0.0.1:5432/postgres",
-      LAMMAH_TEST_POSTGRES_CONTAINER: process.env.TEST_POSTGRES_CONTAINER ?? "",
+      LAMMAH_TEST_POSTGRES_CONTAINER: databaseName,
     });
     await command("root-audit", "npm", ["audit", "--audit-level=low"]);
     await command("docs-check", "python3", ["scripts/check_project_docs.py"]);
@@ -259,6 +296,13 @@ try {
 } catch {
   process.exitCode = 1;
 } finally {
+  if (databaseStarted) {
+    try {
+      await command("database-stop", "docker", ["stop", databaseName]);
+    } catch {
+      process.exitCode = 1;
+    }
+  }
   try {
     await sealReport();
   } catch {
