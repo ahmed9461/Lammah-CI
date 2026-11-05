@@ -1,18 +1,26 @@
 import { copyFile, lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { digest } from "./report.mjs";
+export function productionVersion(version, code) {
+  const match = /^0\.8\.(0|[1-9]\d{0,3})$/u.exec(version ?? "");
+  if (!match || code !== 800 + Number(match[1]))
+    throw Error("invalid_apk_evidence");
+  return version;
+}
 // Contract with apps/mobile/scripts/apk-evidence.mjs. Informational files are
 // recognized, but only the validated APK and build manifest enter the report.
 export async function collectApkFiles(folder, output, expected) {
-  const production = expected.profile === "production-candidate",
-    version = production ? "0.8.0" : "0.6.0";
+  const production = expected.profile === "production-candidate";
   if (
     !["preview", "owner-qa", "production-candidate"].includes(expected.profile)
   )
     throw Error("invalid_apk_evidence");
   const names = await readdir(folder),
     bytes = await readFile(join(folder, "build.json")),
-    m = JSON.parse(bytes);
+    m = JSON.parse(bytes),
+    version = production
+      ? productionVersion(m.versionName, m.versionCode)
+      : "0.6.0";
   if (
     m.sourceCommit !== expected.sourceCommit ||
     m.profile !== expected.profile ||
@@ -21,7 +29,7 @@ export async function collectApkFiles(folder, output, expected) {
         ? "app.lammah.owner"
         : `app.lammah.owner.${expected.profile === "preview" ? "preview" : "qa"}`) ||
     m.versionName !== version ||
-    m.versionCode !== (production ? 800 : 600) ||
+    (!production && m.versionCode !== 600) ||
     JSON.stringify(m.supportedAbis) !== JSON.stringify([expected.abi]) ||
     m.file !== `Lammah-${version}-${expected.profile}-${expected.abi}.apk` ||
     m.requiresMetro !== false ||
