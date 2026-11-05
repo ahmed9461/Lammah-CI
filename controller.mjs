@@ -202,16 +202,21 @@ async function run() {
     );
   } else {
     const preview = context.suite.includes("preview"),
+      production = context.suite === "android-production-arm64",
       arm = context.suite.endsWith("arm64"),
       cwd = join(source, "apps/mobile"),
       abi = arm ? "arm64-v8a" : "x86_64",
       env = {
         EXPO_PUBLIC_LAMMAH_PREVIEW: preview ? "1" : "0",
-        EXPO_PUBLIC_LAMMAH_OWNER_QA: preview ? "0" : "1",
+        EXPO_PUBLIC_LAMMAH_OWNER_QA: preview || production ? "0" : "1",
         EXPO_PUBLIC_LAMMAH_NATIVE_PROBE: "0",
         EXPO_PUBLIC_LAMMAH_QA_SCENARIO: "",
         ANDROID_NATIVE_ABI: abi,
-        LAMMAH_BUILD_PROFILE: preview ? "preview" : "owner-qa",
+        LAMMAH_BUILD_PROFILE: preview
+          ? "preview"
+          : production
+            ? "production-candidate"
+            : "owner-qa",
         LAMMAH_ANDROID_ABI: abi,
       };
     await command("mobile-install", "npm", install, cwd);
