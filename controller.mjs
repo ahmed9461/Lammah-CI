@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import {
   appendFile,
-  copyFile,
   lstat,
   readdir,
   readFile,
@@ -10,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectApkFiles } from "./apk-files.mjs";
 import { digest, sealBundle, validateContext } from "./report.mjs";
 
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -244,19 +244,11 @@ async function run() {
       cwd,
       env,
     );
-    for (const name of await readdir(join(cwd, "dist/android-review"))) {
-      if (!/^[\w.-]+\.(apk|json)$/.test(name))
-        throw Error("unexpected_build_file");
-      const file = join(cwd, "dist/android-review", name),
-        info = await lstat(file);
-      if (
-        !info.isFile() ||
-        info.isSymbolicLink() ||
-        info.size > 100 * 1024 * 1024
-      )
-        throw Error("invalid_build_file");
-      await copyFile(file, join(reports, name));
-    }
+    await collectApkFiles(join(cwd, "dist/android-review"), reports, {
+      sourceCommit: context.sourceCommit,
+      profile: env.LAMMAH_BUILD_PROFILE,
+      abi,
+    });
   }
 }
 async function sealReport() {
