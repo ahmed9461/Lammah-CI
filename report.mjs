@@ -14,6 +14,7 @@ export const suites = [
   "p01",
   "android-preview-arm64",
   "android-owner-arm64",
+  "android-production-arm64",
   "android-preview-x86",
   "android-owner-x86",
 ];
