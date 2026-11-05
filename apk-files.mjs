@@ -4,6 +4,12 @@ import { digest } from "./report.mjs";
 // Contract with apps/mobile/scripts/apk-evidence.mjs. Informational files are
 // recognized, but only the validated APK and build manifest enter the report.
 export async function collectApkFiles(folder, output, expected) {
+  const production = expected.profile === "production-candidate",
+    version = production ? "0.8.0" : "0.6.0";
+  if (
+    !["preview", "owner-qa", "production-candidate"].includes(expected.profile)
+  )
+    throw Error("invalid_apk_evidence");
   const names = await readdir(folder),
     bytes = await readFile(join(folder, "build.json")),
     m = JSON.parse(bytes);
@@ -11,11 +17,13 @@ export async function collectApkFiles(folder, output, expected) {
     m.sourceCommit !== expected.sourceCommit ||
     m.profile !== expected.profile ||
     m.package !==
-      `app.lammah.owner.${expected.profile === "preview" ? "preview" : "qa"}` ||
-    m.versionName !== "0.6.0" ||
-    m.versionCode !== 600 ||
+      (production
+        ? "app.lammah.owner"
+        : `app.lammah.owner.${expected.profile === "preview" ? "preview" : "qa"}`) ||
+    m.versionName !== version ||
+    m.versionCode !== (production ? 800 : 600) ||
     JSON.stringify(m.supportedAbis) !== JSON.stringify([expected.abi]) ||
-    m.file !== `Lammah-0.6.0-${expected.profile}-${expected.abi}.apk` ||
+    m.file !== `Lammah-${version}-${expected.profile}-${expected.abi}.apk` ||
     m.requiresMetro !== false ||
     m.nativeProbe !== false
   )
